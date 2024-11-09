@@ -1,0 +1,88 @@
+trigger:
+  - main
+
+variables:
+  acrName: "hrassistantregistry"
+  appName: "hr-assistant"
+  imageName: "hr-assistant"
+  location: "eastus"
+  rgName: "hr-assistant-rg"
+
+stages:
+  - stage: Build
+    jobs:
+      - job: BuildAndPush
+        pool:
+          vmImage: "ubuntu-latest"
+        steps:
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: "$(AZURE_SERVICE_CONNECTION)"
+              scriptType: "pscore"
+              scriptLocation: "inlineScript"
+              inlineScript: |
+                az acr create --name $(acrName) --resource-group $(rgName) --sku Standard --admin-enabled true
+
+          - task: Docker@2
+            inputs:
+              containerRegistry: "$(ACR_SERVICE_CONNECTION)"
+              repository: "$(imageName)"
+              command: "buildAndPush"
+              Dockerfile: "**/Dockerfile"
+              buildContext: "."
+              tags: |
+                $(Build.BuildId)
+                latest
+              arguments: |
+                --build-arg AZURE_OPENAI_ENDPOINT="$(AZURE_OPENAI_ENDPOINT)"
+                --build-arg AZURE_OPENAI_KEY="$(AZURE_OPENAI_KEY)"
+                --build-arg AZURE_COGNITIVE_ENDPOINT="$(AZURE_COGNITIVE_ENDPOINT)"
+                --build-arg AZURE_COGNITIVE_KEY="$(AZURE_COGNITIVE_KEY)"
+
+  - stage: Deploy
+    dependsOn: Build
+    jobs:
+      - deployment: DeployToAzure
+        environment: "production"
+        pool:
+          vmImage: "ubuntu-latest"
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: AzureCLI@2
+                  inputs:
+                    azureSubscription: "Azure-Service-Connection"
+                    scriptType: "pscore"
+                    scriptLocation: "inlineScript"
+                    inlineScript: |
+                      # Create App Service Plan
+                      az appservice plan create \
+                        --name "$(appName)-plan" \
+                        --resource-group $(rgName) \
+                        --sku B1 \
+                        --is-linux
+
+                      # Create/Update Web App
+                      az webapp create \
+                        --name $(appName) \
+                        --resource-group $(rgName) \
+                        --plan "$(appName)-plan" \
+                        --deployment-container-image-name "$(acrName).azurecr.io/$(imageName):$(Build.BuildId)"
+
+                      # Configure App Settings
+                      az webapp config appsettings set \
+                        --resource-group $(rgName) \
+                        --name $(appName) \
+                        --settings \
+                          WEBSITES_PORT=8080 \
+                          AZURE_OPENAI_ENDPOINT="$(AZURE_OPENAI_ENDPOINT)" \
+                          AZURE_OPENAI_KEY="$(AZURE_OPENAI_KEY)" \
+                          AZURE_COGNITIVE_ENDPOINT="$(AZURE_COGNITIVE_ENDPOINT)" \
+                          AZURE_COGNITIVE_KEY="$(AZURE_COGNITIVE_KEY)"
+
+                      # Enable Logging
+                      az webapp log config \
+                        --resource-group $(rgName) \
+                        --name $(appName) \
+                        --web-server-logging filesystem
