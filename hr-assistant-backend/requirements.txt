@@ -1,0 +1,9 @@
+azure-identity
+azure-ai-textanalytics
+azure-search-documents
+openai
+python-dotenv
+fastapi==0.68.1
+uvicorn==0.15.0
+pydantic==1.8.2
+aiofiles==0.8.0
