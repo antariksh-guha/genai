@@ -4,6 +4,7 @@ import {
   HRDocument,
   APIResponse,
   ResumeScreenResponse,
+  CareerProgressionRequest,
 } from "../types/hr-types";
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "/api";
@@ -73,6 +74,15 @@ export const hrService = {
 
   async generateHRDocument(data: HRDocument): Promise<APIResponse> {
     const response = await fetch(`${API_BASE_URL}/hr-document`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<APIResponse>(response);
+  },
+
+  async suggestCareerProgression(data: CareerProgressionRequest): Promise<APIResponse> {
+    const response = await fetch(`${API_BASE_URL}/career-progression`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),

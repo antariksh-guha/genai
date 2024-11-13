@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from openai import AzureOpenAI 
 import os
 from dotenv import load_dotenv
@@ -16,6 +16,7 @@ import pandas as pd
 from typing import List, Dict
 from dataclasses import dataclass
 from operator import itemgetter
+from vector_db import VectorDBService
 
 # Configure logging
 logging.basicConfig(
@@ -79,6 +80,13 @@ class HRDocumentRequest(BaseModel):
 class InternalMobilityRequest(BaseModel):
     employee_data: dict
     available_positions: list[dict] = []
+
+class CareerProgressionRequest(BaseModel):
+    employee_data: Dict[str, Any]
+    target_role: Optional[str] = None
+    target_grade: Optional[str] = None
+    target_department: Optional[str] = None
+    target_job_family: Optional[str] = None
 
 app = FastAPI()
 
@@ -313,6 +321,47 @@ class HRServices:
             logger.error(f"Error generating HR document: {str(e)}")
             raise
 
+    @staticmethod
+    def suggest_career_progression(employee_data, target_role=None, target_grade=None, 
+                                 target_department=None, target_job_family=None):
+        try:
+            # Get similar profiles from vector DB
+            similar_profiles = VectorDBService.search_similar_profiles(
+                employee_data, 
+                target_role,
+                target_grade,
+                target_department,
+                target_job_family
+            )
+
+            messages = [
+                {"role": "system", "content": """You are a career progression advisor.
+                 Analyze the employee profile and similar successful profiles to suggest career development paths."""},
+                {"role": "user", "content": f"""
+                 Current Employee: {json.dumps(employee_data)}
+                 Similar Successful Profiles: {json.dumps(similar_profiles)}
+                 
+                 Provide:
+                 1. Skills gap analysis
+                 2. Required certifications
+                 3. Experience milestones needed
+                 4. Timeline estimates
+                 5. Learning resources"""}
+            ]
+
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=messages,
+                max_tokens=1000,
+                temperature=0.7
+            )
+
+            return response.choices[0].message.content
+
+        except Exception as e:
+            logger.error(f"Error suggesting career progression: {str(e)}")
+            raise
+
 @app.post("/api/interview-questions")
 async def generate_interview_questions(request: JobDescriptionRequest):
     logger.info("Received request for interview questions")
@@ -371,6 +420,22 @@ async def generate_hr_document(request: HRDocumentRequest):
         return {"document": document}
     except Exception as e:
         logger.error(f"Error in hr document generation endpoint: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/career-progression")
+async def suggest_career_progression(request: CareerProgressionRequest):
+    logger.info("Received request for career progression suggestions")
+    try:
+        suggestions = HRServices.suggest_career_progression(
+            request.employee_data,
+            request.target_role,
+            request.target_grade,
+            request.target_department,
+            request.target_job_family
+        )
+        return {"suggestions": suggestions}
+    except Exception as e:
+        logger.error(f"Error in career progression suggestion endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/health")

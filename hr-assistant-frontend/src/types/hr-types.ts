@@ -47,6 +47,7 @@ export interface APIResponse {
   job_description?: string;
   suggestions?: string;
   document?: string;
+  
 }
 
 export interface ResumeScreenRequest {
@@ -62,3 +63,44 @@ export interface ResumeScreenResponse {
     match_details: string;
   }[];
 }
+
+export interface CareerProgressionRequest {
+  employee_data: {
+    current_role: string;
+    grade: string;
+    department: string;
+    job_family: string;
+    skills: string[];
+    total_exp: number;
+    qualifications: string[];
+    certifications: string[];
+  };
+  target_role?: string;
+  target_grade?: string;
+  target_department?: string;
+  target_job_family?: string;
+}
+
+export const employeeDataSchema = {
+  type: "object",
+  required: [
+    "GRADE",
+    "JOB_FAMILY", 
+    "ROLE",
+    "TOTAL_EXP",
+    "SKILLS",
+    "DEPARTMENT",
+    "QUALIFICATION",
+    "CERTIFICATIONS"
+  ],
+  properties: {
+    GRADE: { type: "string" },
+    JOB_FAMILY: { type: "string" },
+    ROLE: { type: "string" },
+    TOTAL_EXP: { type: "number", minimum: 0 },
+    SKILLS: { type: "string" },
+    DEPARTMENT: { type: "string" },
+    QUALIFICATION: { type: "string" },
+    CERTIFICATIONS: { type: "string" }
+  }
+};

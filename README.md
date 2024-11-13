@@ -12,10 +12,12 @@ az login
 
 ### `Variables`
 
-$RG_NAME="hr-assistant-rg"
-$LOCATION="eastus"
-$OPENAI_NAME="hr-openai"
+$RG_NAME="GenAI-BaseRG-southindia"
+$LOCATION="southindia"
+$OPENAI_NAME="GenAI-OpenAI-TheAI-nsteins"
 $COGNITIVE_NAME="hr-cognitive"
+$STORAGE_NAME="hrassistantstore"
+$SEARCH_SERVICE_NAME="hr-assistant-search"
 
 ### `Create Resource Group`
 
@@ -28,12 +30,29 @@ az cognitiveservices account create `--name $OPENAI_NAME`
 --sku S0 `--location $LOCATION`
 --yes
 
-### `Create Cognitive Services`
+### `Create Storage Account`
+az storage account create --name $STORAGE_NAME --resource-group $RG_NAME --location $LOCATION --sku Standard_LRS
 
-az cognitiveservices account create `--name $COGNITIVE_NAME`
---resource-group $RG_NAME `--kind TextAnalytics`
---sku S0 `--location $LOCATION`
---yes
+### `Get storage connection string`
+az storage account show-connection-string --name $STORAGE_NAME --resource-group $RG_NAME
+
+### `Create Azure Search service`
+az search service create --name $SEARCH_SERVICE_NAME --resource-group $RG_NAME --sku Standard --location $LOCATION
+
+### `Get admin key`
+az search admin-key show --resource-group $RG_NAME --service-name $SEARCH_SERVICE_NAME 
+  
+
+### `Create query key`
+az search query-key create --resource-group $RG_NAME --service-name $SEARCH_SERVICE_NAME --name hr-assistant-query-key
+
+### `Create search index`
+$SEARCH_ENDPOINT="https://$SEARCH_SERVICE_NAME.search.windows.net"
+
+curl -X PUT "$SEARCH_ENDPOINT/indexes/employee-profiles?api-version=2023-07-01-Preview" -H "Content-Type: application/json" -H "api-key: $SEARCH_ADMIN_KEY" -d "@index.json"
+
+### `Create Cognitive Services`
+az cognitiveservices account create --name $COGNITIVE_NAME --resource-group $RG_NAME --kind TextAnalytics --sku S0 --location $LOCATION --yes
 
 ## Test locally with Docker Desktop
 

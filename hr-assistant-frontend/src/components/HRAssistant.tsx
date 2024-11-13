@@ -19,7 +19,8 @@ import {
   Menu,
 } from "@mui/material";
 import { hrService } from "../services/hr-service";
-import { validateJson } from "../utils/jsonHelpers";
+import { formatEmployeeData, formatInternalPosition, formatJobDescription, getEmployeeDataFormat, validateJson } from "../utils/jsonHelpers";
+import { CareerProgressionRequest } from "../types/hr-types";
 
 const LoadingSpinner = () => <CircularProgress size={20} color="inherit" />;
 
@@ -34,6 +35,10 @@ export const HRAssistant: React.FC = () => {
   const [employeeData, setEmployeeData] = useState("");
   const [documentType, setDocumentType] = useState("offer_letter");
   const [internalPositions, setInternalPositions] = useState<string>("");
+  const [targetRole, setTargetRole] = useState("");
+  const [targetGrade, setTargetGrade] = useState("");
+  const [targetDepartment, setTargetDepartment] = useState("");
+  const [targetJobFamily, setTargetJobFamily] = useState("");
 
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -63,6 +68,10 @@ export const HRAssistant: React.FC = () => {
     setEmployeeData("");
     setInternalPositions("");
     setResult("");
+    setTargetRole("");
+    setTargetGrade("");
+    setTargetDepartment("");
+    setTargetJobFamily("");
   };
 
   const handleTabChange = (tab: string) => {
@@ -103,8 +112,27 @@ export const HRAssistant: React.FC = () => {
         }
       }
 
+      if (activeTab === "career") {
+        if (!validateJson(employeeData)) {
+          throw new Error(
+            `Invalid JSON format. Expected format:\n${formatEmployeeData()}`
+          );
+        }
+      }
+
       let response;
       switch (activeTab) {
+        case "career":
+          let curObj: CareerProgressionRequest = {
+            employee_data: JSON.parse(employeeData), 
+            target_role: targetRole,
+            target_grade: targetGrade,
+            target_department: targetDepartment,
+            target_job_family: targetJobFamily
+          };
+          response = await hrService.suggestCareerProgression(curObj);
+          setResult(response.suggestions || "");
+          break;
         case "interview":
           response = await hrService.generateInterviewQuestions(jobDesc);
           setResult(response.questions || "");
@@ -198,14 +226,84 @@ export const HRAssistant: React.FC = () => {
             scrollButtons="auto"
             sx={{ mb: 3 }}
           >
-            <Tab label="Interview Questions" value="interview" />
+            <Tab label="Career Progression" value="career" />
             <Tab label="Resume Screening" value="resume" />
+            <Tab label="Interview Questions" value="interview" />
             <Tab label="Job Description" value="jobdesc" />
             <Tab label="Internal Mobility" value="mobility" />
             <Tab label="HR Documents" value="document" />
           </Tabs>
 
           <Box component="form" onSubmit={handleSubmit}>
+            {activeTab === "career" && (
+              <Stack spacing={3}>
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    Current Profile
+                  </Typography>
+                  <TextField
+                    value={employeeData}
+                    onChange={(e) => setEmployeeData(e.target.value)}
+                    placeholder="Enter employee data (JSON)"
+                    required
+                  />
+                  <Button
+                    variant="outlined"
+                    onClick={() => setEmployeeData(getEmployeeDataFormat())}
+                    color="secondary"
+                    sx={{ mt: 1 }}
+                  >
+                    Generate Employee Data Format
+                  </Button>
+                </Box>
+
+                
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    Target Role (Optional)
+                  </Typography>
+                  <TextField
+                    value={targetRole}
+                    onChange={(e) => setTargetRole(e.target.value)}
+                    placeholder="Enter target role"
+                  />
+                </Box>
+
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    Target Grade (Optional)  
+                  </Typography>
+                  <TextField
+                    value={targetGrade}
+                    onChange={(e) => setTargetGrade(e.target.value)}
+                    placeholder="Enter target grade"
+                  />
+                </Box>
+
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    Target Department (Optional)  
+                  </Typography>
+                  <TextField
+                    value={targetDepartment}
+                    onChange={(e) => setTargetDepartment(e.target.value)}
+                    placeholder="Enter target department"
+                  />
+                </Box>
+
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    Target Job Family (Optional)  
+                  </Typography>
+                  <TextField
+                    value={targetJobFamily}
+                    onChange={(e) => setTargetJobFamily(e.target.value)}
+                    placeholder="Enter target job family"
+                  />
+                </Box>
+              </Stack>
+            )}
+
             {activeTab === "interview" && (
               <TextField
                 value={jobDesc}
@@ -356,54 +454,3 @@ export const HRAssistant: React.FC = () => {
     </>
   );
 };
-
-function formatJobDescription() {
-  return JSON.stringify(
-    {
-      title: "",
-      department: "",
-      level: "",
-      responsibilities: [],
-      requirements: [],
-      location: "",
-      salary_range: "",
-    },
-    null,
-    2
-  );
-}
-
-function formatInternalPosition() {
-  return JSON.stringify(
-    [
-      {
-        id: "",
-        title: "",
-        department: "",
-        level: "",
-        requirements: [],
-      },
-    ],
-    null,
-    2
-  );
-}
-
-function formatEmployeeData() {
-  return JSON.stringify(
-    {
-      name: "",
-      position: "",
-      department: "",
-      start_date: "",
-      salary: "",
-      email: "",
-      // Additional fields needed for HR documents
-      manager: "",
-      employee_id: "",
-      effective_date: ""
-    },
-    null,
-    2
-  );
-}
