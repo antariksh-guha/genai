@@ -1,9 +1,13 @@
-azure-identity
-azure-ai-textanalytics
-azure-search-documents
-openai
-python-dotenv
-fastapi==0.68.1
-uvicorn==0.15.0
-pydantic==1.8.2
 aiofiles==0.8.0
+azure-ai-textanalytics==5.3.0
+azure-core==1.29.5
+azure-identity==1.15.0
+azure-search-documents==11.4.0
+fastapi==0.95.0  # Updated to work with newer pydantic
+openai==1.12.0
+pydantic>=1.9.0,<2.0.0  # Updated to satisfy both FastAPI and OpenAI
+python-dotenv==1.0.0
+requests==2.31.0
+typing-extensions==4.9.0
+uvicorn==0.15.0
+pandas>=2.0.0

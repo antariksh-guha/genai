@@ -1,9 +1,9 @@
 import {
   JobDescription,
-  ResumeScreening,
   InternalMobility,
   HRDocument,
   APIResponse,
+  ResumeScreenResponse,
 } from "../types/hr-types";
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "/api";
@@ -28,13 +28,29 @@ export const hrService = {
     return handleResponse<APIResponse>(response);
   },
 
-  async screenResume(data: ResumeScreening): Promise<APIResponse> {
-    const response = await fetch(`${API_BASE_URL}/screen-resume`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    return handleResponse<APIResponse>(response);
+  async screenResume(number: string, jobDescription: string): Promise<ResumeScreenResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/screen-resume`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          job_description: jobDescription,
+          number: number
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to screen resume');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Resume screening error:', error);
+      throw error;
+    }
   },
 
   async generateJobDescription(data: JobDescription): Promise<APIResponse> {

@@ -8,7 +8,7 @@ export interface JobDescription {
 }
 
 export interface ResumeScreening {
-  resume: string;
+  number: string;
   job_description: string;
 }
 
@@ -47,4 +47,18 @@ export interface APIResponse {
   job_description?: string;
   suggestions?: string;
   document?: string;
+}
+
+export interface ResumeScreenRequest {
+  job_description: string;
+  resume_text: string; // Added missing field
+}
+
+export interface ResumeScreenResponse {
+  analysis: {
+    id: string;
+    name: string;
+    similarity_score: number;
+    match_details: string;
+  }[];
 }

@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, Any
+from openai import AzureOpenAI 
 import os
 from dotenv import load_dotenv
 import logging
@@ -11,6 +12,10 @@ import json
 import time
 import re
 from urllib.parse import urlparse
+import pandas as pd
+from typing import List, Dict
+from dataclasses import dataclass
+from operator import itemgetter
 
 # Configure logging
 logging.basicConfig(
@@ -54,7 +59,7 @@ class JobDescriptionRequest(BaseModel):
         max_length = 5000
 
 class ResumeScreenRequest(BaseModel):
-    resume: str
+    number: str
     job_description: str
     
     class Config:
@@ -129,10 +134,11 @@ def validate_endpoint_url(url: str) -> str:
     return url
 
 # Azure OpenAI Configuration
-openai.api_type = "azure"
-openai.api_base = validate_endpoint_url(os.getenv("AZURE_OPENAI_ENDPOINT"))
-openai.api_version = "2023-05-15"
-openai.api_key = os.getenv("AZURE_OPENAI_KEY")
+client = AzureOpenAI(
+    api_key=os.getenv("AZURE_OPENAI_KEY"),
+    api_version="2024-08-01-preview",
+    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
+)
 
 # Azure Cognitive Services Configuration
 text_analytics_endpoint = os.getenv("AZURE_COGNITIVE_ENDPOINT").rstrip('/')
@@ -144,48 +150,123 @@ text_analytics_client = TextAnalyticsClient(
     credential=AzureKeyCredential(os.getenv("AZURE_COGNITIVE_KEY"))
 )
 
+@dataclass
+class ResumeMatch:
+    id: str
+    name: str
+    similarity_score: float
+    match_details: str
+
 class HRServices:
     @staticmethod
     def generate_interview_questions(job_description):
         logger.info("Generating interview questions")
         try:
-            prompt = f"Generate 10 technical screening interview questions based on this job description: {job_description}"
-            response = openai.Completion.create(
-                engine="gpt-4",
-                prompt=prompt,
-                max_tokens=1000
+            messages = [
+                {
+                    "role": "system", 
+                    "content": "You are an HR assistant specialized in technical interviews."
+                },
+                {
+                    "role": "user", 
+                    "content": f"Generate 15 technology and scenerio based screening interview questions based on this job description: {job_description}"
+                }
+            ]
+            response = client.chat.completions.create(
+                model="gpt-4o", 
+                messages=messages,
+                max_tokens=1000,
+                temperature=0.7
             )
-            return response.choices[0].text.strip()
+            return response.choices[0].message.content.strip()
         except Exception as e:
             logger.error(f"Error generating interview questions: {str(e)}")
             raise
 
     @staticmethod
-    def screen_resume(resume_text, job_description):
-        logger.info("Screening resume")
+    def bulk_screen_resumes(csv_file_path: str, job_description: str, number: int) -> List[ResumeMatch]:
+        logger.info("Starting bulk resume screening")
         try:
-            prompt = f"Screen this resume: {resume_text} for the job description: {job_description}"
-            response = openai.Completion.create(
-                engine="gpt-4",
-                prompt=prompt,
-                max_tokens=500
-            )
-            return response.choices[0].text.strip()
+            # Read CSV file
+            df = pd.read_csv(csv_file_path)
+            matches = []
+
+            # Process each resume
+            for _, row in df.iterrows():
+                try:
+                    messages = [
+                        {"role": "system", "content": """You are an HR assistant. Your task is to analyze resumes.
+                         IMPORTANT: Return only a valid JSON object with exactly this format:
+                         {
+                            "score": <number 0-100>,
+                            "name": "<candidate name>",
+                            "key_matches": "<brief match explanation>"
+                         }"""},
+                        {"role": "user", "content": f"""Job Description: {job_description}
+                         Resume: {row['resume']}
+                         Return ONLY the JSON response."""}
+                    ]
+                    
+                    response = client.chat.completions.create(
+                        model="gpt-4o",  # Fixed model name
+                        messages=messages,
+                        max_tokens=500,
+                        temperature=0.3,
+                        response_format={"type": "json_object"}  # Force JSON response
+                    )
+
+                    time.sleep(2)  # Increased delay between API calls
+                    
+                    response_text = response.choices[0].message.content.strip()
+                    if not response_text:
+                        raise ValueError("Empty response received")
+                        
+                    result = json.loads(response_text)
+                    
+                    # Validate result structure
+                    if not all(k in result for k in ["score", "name", "key_matches"]):
+                        raise ValueError("Invalid response format")
+                        
+                    matches.append(ResumeMatch(
+                        id=str(row['id']),
+                        name=result['name'],
+                        similarity_score=float(result['score']),
+                        match_details=result['key_matches']
+                    ))
+                except Exception as e:
+                    logger.error(f"Error processing resume {row['id']}: {str(e)}")
+                    continue
+
+            # Sort by similarity score and get top matches
+            top_matches = sorted(matches, 
+                               key=lambda x: x.similarity_score, 
+                               reverse=True)[:number]
+            
+            return [
+                {
+                    "id": match.id,
+                    "name": match.name,
+                    "similarity_score": match.similarity_score,
+                    "match_details": match.match_details
+                } for match in top_matches
+            ]
+
         except Exception as e:
-            logger.error(f"Error screening resume: {str(e)}")
+            logger.error(f"Error in bulk resume screening: {str(e)}")
             raise
 
     @staticmethod
     def generate_job_description(params):
         logger.info("Generating job description")
         try:
-            prompt = f"Generate a detailed job description based on these parameters: {json.dumps(params)}"
-            response = openai.Completion.create(
-                engine="gpt-4",
-                prompt=prompt,
-                max_tokens=800
-            )
-            return response.choices[0].text.strip()
+            # prompt = f"Generate a detailed job description based on these parameters: {json.dumps(params)}"
+            # response = openai.Completion.create(
+            #     engine="gpt-4o",
+            #     prompt=prompt,
+            #     max_tokens=800
+            # )
+            # return response.choices[0].text.strip()
+            return "Work in Progress"
         except Exception as e:
             logger.error(f"Error generating job description: {str(e)}")
             raise
@@ -194,23 +275,24 @@ class HRServices:
     def suggest_internal_mobility(employee_data, available_positions):
         logger.info("Suggesting internal mobility")
         try:
-            prompt = f"""
-            Analyze employee fit for internal positions.
-            Employee: {json.dumps(employee_data)}
-            Available Positions: {json.dumps(available_positions)}
+            # prompt = f"""
+            # Analyze employee fit for internal positions.
+            # Employee: {json.dumps(employee_data)}
+            # Available Positions: {json.dumps(available_positions)}
         
-            Provide:
-            1. Match score for each position (0-100%)
-            2. Key matching skills and requirements
-            3. Development areas
-            4. Career path recommendations
-            """
-            response = openai.Completion.create(
-                engine="gpt-4",
-                prompt=prompt,
-                max_tokens=1000
-            )
-            return response.choices[0].text.strip()
+            # Provide:
+            # 1. Match score for each position (0-100%)
+            # 2. Key matching skills and requirements
+            # 3. Development areas
+            # 4. Career path recommendations
+            # """
+            # response = openai.Completion.create(
+            #     engine="gpt-4o",
+            #     prompt=prompt,
+            #     max_tokens=1000
+            # )
+            # return response.choices[0].text.strip()
+            return "Work in Progress"
         except Exception as e:
             logger.error(f"Error suggesting internal mobility: {str(e)}")
             raise
@@ -219,13 +301,14 @@ class HRServices:
     def generate_hr_document(template_type, employee_data):
         logger.info("Generating HR document")
         try:
-            prompt = f"Generate a {template_type} using this employee data: {json.dumps(employee_data)}"
-            response = openai.Completion.create(
-                engine="gpt-4",
-                prompt=prompt,
-                max_tokens=1000
-            )
-            return response.choices[0].text.strip()
+            # prompt = f"Generate a {template_type} using this employee data: {json.dumps(employee_data)}"
+            # response = openai.Completion.create(
+            #     engine="gpt-4o",
+            #     prompt=prompt,
+            #     max_tokens=1000
+            # )
+            # return response.choices[0].text.strip()
+            return "Work in Progress"
         except Exception as e:
             logger.error(f"Error generating HR document: {str(e)}")
             raise
@@ -244,11 +327,16 @@ async def generate_interview_questions(request: JobDescriptionRequest):
 async def screen_resume(request: ResumeScreenRequest):
     logger.info("Received request for resume screening")
     try:
-        analysis = HRServices.screen_resume(request.resume, request.job_description)
+        analysis = HRServices.bulk_screen_resumes(
+            "resumes.csv",
+            request.job_description,
+            int(request.number)
+        )
         return {"analysis": analysis}
     except Exception as e:
         logger.error(f"Error in resume screening endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/api/job-description")
 async def generate_job_description(request: JobParametersRequest):

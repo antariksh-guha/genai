@@ -29,7 +29,8 @@ export const HRAssistant: React.FC = () => {
   const [result, setResult] = useState<string>("");
 
   const [jobDesc, setJobDesc] = useState("");
-  const [resume, setResume] = useState("");
+  const [number, setNumber] = useState("");
+  // const [resume, setResume] = useState("");
   const [employeeData, setEmployeeData] = useState("");
   const [documentType, setDocumentType] = useState("offer_letter");
   const [internalPositions, setInternalPositions] = useState<string>("");
@@ -57,7 +58,8 @@ export const HRAssistant: React.FC = () => {
 
   const clearInputs = () => {
     setJobDesc("");
-    setResume("");
+    // setResume("");
+    setNumber("");
     setEmployeeData("");
     setInternalPositions("");
     setResult("");
@@ -108,11 +110,8 @@ export const HRAssistant: React.FC = () => {
           setResult(response.questions || "");
           break;
         case "resume":
-          response = await hrService.screenResume({
-            resume,
-            job_description: jobDesc,
-          });
-          setResult(response.analysis || "");
+          response = await hrService.screenResume(number, jobDesc);
+          setResult(JSON.stringify(response.analysis) || "");
           break;
         case "jobdesc":
           response = await hrService.generateJobDescription({
@@ -225,9 +224,9 @@ export const HRAssistant: React.FC = () => {
                   required
                 />
                 <TextField
-                  value={resume}
-                  onChange={(e) => setResume(e.target.value)}
-                  placeholder="Enter resume text"
+                  value={number}
+                  onChange={(e) => setNumber(e.target.value)}
+                  placeholder="Enter number of resumes to fetch (1-10) to screen against job description"
                   required
                 />
               </Stack>
