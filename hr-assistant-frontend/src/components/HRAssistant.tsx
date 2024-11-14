@@ -12,11 +12,6 @@ import {
   CircularProgress,
   Alert,
   Stack,
-  AppBar,
-  Toolbar,
-  IconButton,
-  Avatar,
-  Menu,
 } from "@mui/material";
 import { hrService } from "../services/hr-service";
 import { formatEmployeeData, formatInternalPosition, formatJobDescription, getEmployeeDataFormat, validateJson } from "../utils/jsonHelpers";
@@ -40,27 +35,6 @@ export const HRAssistant: React.FC = () => {
   const [targetDepartment, setTargetDepartment] = useState("");
   const [targetJobFamily, setTargetJobFamily] = useState("");
 
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const open = Boolean(anchorEl);
-
-  const handleLogin = () => {
-    setIsLoggedIn(true);
-  };
-
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setAnchorEl(null);
-  };
-
-  const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleClose = () => {
-    setAnchorEl(null);
-  };
-
   const clearInputs = () => {
     setJobDesc("");
     // setResume("");
@@ -77,6 +51,9 @@ export const HRAssistant: React.FC = () => {
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
     clearInputs();
+    if (tab === "career") {
+      setEmployeeData(getEmployeeDataFormat());
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -174,38 +151,8 @@ export const HRAssistant: React.FC = () => {
 
   return (
     <>
-      <AppBar position="fixed" color="default" elevation={1}>
-        <Toolbar sx={{ justifyContent: "flex-end" }}>
-          {isLoggedIn ? (
-            <div>
-              <IconButton onClick={handleMenu}>
-                <Avatar sx={{ bgcolor: "primary.main" }}>
-                  {/* User initial or icon */}
-                  U
-                </Avatar>
-              </IconButton>
-              <Menu
-                anchorEl={anchorEl}
-                open={open}
-                onClose={handleClose}
-              >
-                <MenuItem onClick={handleLogout}>Logout</MenuItem>
-              </Menu>
-            </div>
-          ) : (
-            <Button
-              variant="contained"
-              onClick={handleLogin}
-              sx={{ textTransform: 'none' }}
-            >
-              Login
-            </Button>
-          )}
-        </Toolbar>
-      </AppBar>
-
       {/* Add margin-top to account for fixed AppBar */}
-      <Box sx={{ mt: 8 }}>
+      <Box>
         <Paper 
           elevation={2} 
           sx={{ 
@@ -216,45 +163,51 @@ export const HRAssistant: React.FC = () => {
           }}
         >
           <Typography variant="h4" gutterBottom align="center">
-            HR Assistant
+            Talent Rise
           </Typography>
 
-          <Tabs 
-            value={activeTab}
-            onChange={(_, tab) => handleTabChange(tab)}
-            variant="scrollable"
-            scrollButtons="auto"
-            sx={{ mb: 3 }}
-          >
-            <Tab label="Career Progression" value="career" />
-            <Tab label="Resume Screening" value="resume" />
-            <Tab label="Interview Questions" value="interview" />
-            <Tab label="Job Description" value="jobdesc" />
-            <Tab label="Internal Mobility" value="mobility" />
-            <Tab label="HR Documents" value="document" />
-          </Tabs>
+            <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+              
+            <Tabs 
+              value={activeTab}
+              onChange={(_, tab) => handleTabChange(tab)}
+              variant="scrollable"
+              scrollButtons="auto"
+            >
+              <Tab label="Path Finder" value="career" sx={{ ml: 2 }} />
+              <Tab label="Talent Hound" value="resume" sx={{ ml: 2 }} />
+              <Tab label="HireWise" value="interview" />
+              <Tab label="Job Match" value="mobility" />
+              <Tab label="Docufy" value="document" />
+            </Tabs>
+            </Box>
 
           <Box component="form" onSubmit={handleSubmit}>
             {activeTab === "career" && (
               <Stack spacing={3}>
                 <Box>
-                  <Typography variant="h6" gutterBottom>
+                    <Typography variant="h6" gutterBottom>
                     Current Profile
-                  </Typography>
-                  <TextField
-                    value={employeeData}
-                    onChange={(e) => setEmployeeData(e.target.value)}
-                    placeholder="Enter employee data (JSON)"
-                    required
-                  />
-                  <Button
+                    </Typography>
+                    {employeeData && (
+                    <Box sx={{ mb: 2 }}>
+                      {Object.entries(JSON.parse(employeeData)).map(([key, value]) => (
+                        <Typography key={key} sx={{ mb: 1 }}>
+                          <strong>{key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}:</strong>{' '}
+                          {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                        </Typography>
+                      ))}
+                    </Box>
+                    )}
+                
+                  {/* <Button
                     variant="outlined"
                     onClick={() => setEmployeeData(getEmployeeDataFormat())}
                     color="secondary"
                     sx={{ mt: 1 }}
                   >
                     Generate Employee Data Format
-                  </Button>
+                  </Button> */}
                 </Box>
 
                 
@@ -266,17 +219,20 @@ export const HRAssistant: React.FC = () => {
                     value={targetRole}
                     onChange={(e) => setTargetRole(e.target.value)}
                     placeholder="Enter target role"
+                    rows={1}
                   />
                 </Box>
 
                 <Box>
                   <Typography variant="h6" gutterBottom>
-                    Target Grade (Optional)  
+                  Target Grade (Optional)  
                   </Typography>
                   <TextField
+                    type="text"
                     value={targetGrade}
                     onChange={(e) => setTargetGrade(e.target.value)}
                     placeholder="Enter target grade"
+                    rows={1}
                   />
                 </Box>
 
@@ -288,17 +244,19 @@ export const HRAssistant: React.FC = () => {
                     value={targetDepartment}
                     onChange={(e) => setTargetDepartment(e.target.value)}
                     placeholder="Enter target department"
+                    rows={1}
                   />
                 </Box>
 
                 <Box>
                   <Typography variant="h6" gutterBottom>
-                    Target Job Family (Optional)  
+                  Target Job Family (Optional)  
                   </Typography>
                   <TextField
-                    value={targetJobFamily}
-                    onChange={(e) => setTargetJobFamily(e.target.value)}
-                    placeholder="Enter target job family"
+                  value={targetJobFamily}
+                  onChange={(e) => setTargetJobFamily(e.target.value)}
+                  placeholder="Enter target job family"
+                  rows={1}
                   />
                 </Box>
               </Stack>
